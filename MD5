@@ -1,0 +1,16 @@
+5f06f521556d6a38a3bf296bb8f7fdff *ChangeLog
+28d444b023342a8edcc9eede1065af88 *DESCRIPTION
+eb723b61539feef013de476e68b5c50a *GPL-2
+fd9b371a55524c71c62d6606e5b0aa28 *NAMESPACE
+25b9aab5b741e1253a4ffe0a43b76178 *R/code.R
+931c07127382aa73b725be8d2ecaf773 *README
+e97c9b6eb30a72ce50dd6bccbf8b975a *build/vignette.rds
+5c67ef850c9a2ac5b0ff045009484966 *inst/COPYRIGHTS
+efcf67449d620d076c675908e33c239e *inst/doc/tmplate.R
+757daa73e436e6d27f0698a2d137c394 *inst/doc/tmplate.Rmd
+fa65423f5068669e2da0b83246d2dd4c *inst/doc/tmplate.html
+43cf90bd79d5b46bedb1d6f0762f5058 *inst/examples/example.R
+215e50630b060703f44b08ff602465cc *inst/examples/template.txt
+23b6e2168ec17fd020100f698b4009e9 *man/tmplate-package.Rd
+d02104b275193bdfa4aad3f0a2626640 *man/translate.Rd
+757daa73e436e6d27f0698a2d137c394 *vignettes/tmplate.Rmd

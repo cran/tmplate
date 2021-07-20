@@ -1,0 +1,6 @@
+import(
+	tRnslate
+)
+export(
+	translate
+)

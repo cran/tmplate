@@ -1,0 +1,27 @@
+<:SHELL_CALL:>
+<:SLURM_PARTITION:>
+<:SLURM_NODES:>
+<:SLURM_TASKS:>
+<:SLURM_MEMORY:>
+<:SLURM_TIME:>
+@r if(!any(grepl("^<:MISS:>$","<:SLURM_ARRAY:>"))) paste("<:SLURM_ARRAY:>")
+
+@r # R chunk (only assignation)
+@r if(.Platform$OS.type=="unix"){
+@r     is_mod <- system("mod=$(module --dumpversion 2>&1) || mod=`echo -1`; echo $mod",intern = TRUE)
+@r } else {
+@r     is_mod <- "-1"
+@r }
+
+@r # R chunk (printing)
+@r ifelse(is_mod=="-1", "# module environment not found", paste("<:MODULES_LOAD:>"))
+
+<:WORKDIR:>
+
+@r if(!any(grepl("^<:MISS:>$","<:SLURM_ARRAY:>"))) c("<:TASK:>","<:PASS_TASK:>") else paste("<:MISS:>")
+
+<:MPI_N:>
+
+<:MPIRUN:>
+
+<:MESSAGE_CLOSE:>

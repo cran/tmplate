@@ -1,0 +1,289 @@
+---
+title: "tmplate: _translate generic tags in templates to content_"
+author: "Mario A. Martínez Araya"
+date: "2021-07-07"
+url: "http://marioma.me/?i=soft"
+output:
+  rmarkdown::html_vignette:
+    toc: true
+vignette: >
+  %\VignetteIndexEntry{tmplate package}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.align = 'center')
+```
+
+
+
+
+
+
+
+
+<!---meta--->
+    Author: Mario A. Martínez Araya
+    Date: 2021-07-07
+    Url: http://marioma.me/?i=soft
+    CRAN: https://cran.r-project.org/package=tmplate
+<!---meta--->
+
+<!---meta
+    Title: tmplate: _translate generic tags in templates to content_
+    Entry: tmplate package
+    Engine: knitr::rmarkdown
+    Encoding: UTF-8
+meta--->
+
+
+This R package is intended to modify general templates replacing tags by variable content. It was first created to modify R and Bash scripts necessary for parallel computation using MPI. Although it is related with R package `tRnslate`, the package `tmplate` performs a different task which is enhanced by `tRnslate`.
+
+## Requirements
+
+In principle any version of R should be useful but I have not tested them all.
+
+## Installation
+
+The same than for any other R package. You can download the tar file from [CRAN (tmplate)](https://cran.r-project.org/package=tRnslate)
+
+
+    R CMD INSTALL /path/to/tar/file/tmplate_0.0.3.tar.gz
+
+<!---
+    RLIBRARY=/path/to/your/R/library
+    PKG_NAME=tmplate
+    PKG_VERSION=0.0.3
+    #mkdir -p $HOME/Downloads
+    cd $HOME/Downloads
+    wget https://cran.r-project.org/src/contrib/${PKG_NAME}_${PKG_VERSION}.tar.gz
+    R CMD INSTALL --library=${RLIBRARY} ${PKG_NAME}_${PKG_VERSION}.tar.gz
+--->
+
+or from R console:
+
+
+    install.packages("tmplate", lib = "path/to/R/library")
+
+## How to use it?
+
+The main function of the package is `translate`, where its main input arguments are as below:
+
+
+    translate ( vars, ..., template, envir )
+
+* `template` is a character vector where each element is a line in the template that can be obtained using `readLines`. Alternatively, it can be a unique string packing all the content of the template where each line is assumed from the newline character. It can also be a file path but it requires to set `allow_file = TRUE`.
+* `...` are the variables and their values which are used to directly modify the content of the template. For instance `name1 = value1,, ..., nameK = valueK` where `name1`, ..., `nameK` are the tag names, say `<:name1:>`, ..., `<:nameK:>`, that can be used within the template to modify its content depending the values of the variables.
+* `envir` is an environment where the input variables will be evaluated. Additionally it can have its own variables used to modify the template content.
+* `vars` is a named list whose elements are taken as variables to be used in the tags within the template. This is useful when there are too many input variables for `translate`.
+
+As we will see, the output from `translate` is a character vector where each element correspond to a line in the output file.
+
+### 1. Templates with tags (and R code)
+
+First you need to create a generic template for a target class of source files. Let us assume we will write a Bash script for submitting a parallel job using at least `OpenMPI` (+ `SLURM` + `environment-modules` if they are available). As an example, such a template could be like this one:
+
+
+    # template for parallel computation
+    T <- readLines(system.file("examples/template.txt", package = "tmplate"))
+
+To display the content of this template run `cat(T, sep="\n")` and we obtain:
+
+
+    <:SHELL_CALL:>
+    <:SLURM_PARTITION:>
+    <:SLURM_NODES:>
+    <:SLURM_TASKS:>
+    <:SLURM_MEMORY:>
+    <:SLURM_TIME:>
+    @r if(!any(grepl("^<:NULL:>$","<:SLURM_ARRAY:>"))) paste("<:SLURM_ARRAY:>")
+
+    @r # R chunk (only assignation)
+    @r if(.Platform$OS.type=="unix"){
+    @r     is_mod <- system("mod=$(module --dumpversion 2>&1) || mod=`echo -1`; echo $mod",intern = TRUE)
+    @r } else {
+    @r     is_mod <- "-1"
+    @r }
+
+    @r # R chunk (printing)
+    @r ifelse(is_mod=="-1", "# module environment not found", paste("<:MODULES_LOAD:>"))
+
+    <:WORKDIR:>
+
+    @r if(!any(grepl("^<:NULL:>$","<:SLURM_ARRAY:>"))) c("<:TASK:>","<:PASS_TASK:>") else paste("<:NULL:>")
+
+    <:MPI_N:>
+
+    <:MPIRUN:>
+
+    <:MESSAGE_CLOSE:>
+
+### 2. Tags for variables
+
+In the template above, tag variables are marked with `<:name:>` where the name in between `<:` and `:>` is a variable name that will be defined by the input arguments of the function `translate`. This function will translate those tag variables to their respective input values and will replace its content in the position or positions where the respective tag appears in the template. The variable names that make the template are totally arbitrary. The `<:NULL:>` symbol is interpreted as a NULL definition and lines containing it can be drop by setting `drop = TRUE` later in the `translate` command.
+
+### 3. R code (chunks, inline or within variables)
+
+Lines starting with `@r` or `@R` followed by one space or tabular, define chunks of R code that is also interpreted and translated by `translate`. The chunks of R code can be _assignation_ or _output_ chunks following the rules from the R package `tRnslate` (see [tRnslate vignette](https://cran.r-project.org/package=tRnslate/vignettes/tRnslate.html)). Assignation chunks are those including `<-` for assigning an object, while output chunks print R output to the template. Thus several assignation chunks can be placed in adjacent lines, however assignation and output chunks must be separated by one empty line (the same for consecutive output chunks). Alternatively, inline R code can be entered using `<r@ code @>` or  `<R@ code @>`. Inline R code with assignation does not produce output so is replaced by blank, while inline R code producing output while modify the resulting template. Additionaly, inline R code can be used within tag variable definitions to allow different content.
+
+### 4. Template tag variables and R code
+
+The R code can use tag variables that point to the value of argument variables which are being used to modify the template content, for example in the R chunk
+
+
+    @r # R chunk (printing)
+    @r ifelse(is_mod=="-1", "# module environment not found", paste("<:MODULES_LOAD:>"))
+
+it uses the tag `<:MODULES_LOAD:>` to point to the value of the argument variable `MODULES_LOAD`. Similarly, the content of tag variables can be modified using inline R code in the definition of the argument when calling `translate`. For example the argument
+`MPI_ASK_N = '<r@ <:SLURM_ASK_NODES:> * <:SLURM_ASK_TASKS:> @>'` will compute (using inline R code) the number of parallel jobs from the input arguments for the number of nodes and tasks. Note that the NULL definition in the template above is used in a R logical expression to decide whether to print or not `<:SLURM_ARRAY:>` into the source code. Alternatively this decision may have been done purely based on R code.
+
+### 5. Environment where to evaluate
+
+The evaluation of the inline and chunks of R code to update the input arguments and replace the tags in the template is performed in an environment that can be set by the user. As said before, this environment can contain its own objects which can also be referenced to update the input arguments and modify the content of the template.
+
+### 6. The `translate` command
+
+Given the template above, we can define the input arguments directly when calling `translate` as done below:
+
+
+    ## remember to load: library(tmplate) or call tmplate::translate
+    TT <- translate(
+        SHELL_CALL='#!/bin/bash',
+        SLURM_SBATCH=ifelse(.Platform$OS.type=="unix", ifelse(system("clu=$(sinfo --version 2>&1) || clu=`echo -1`; echo $clu",intern = TRUE)=="-1", '<:NULL:>', '#SBATCH '), '<:NULL:>'),
+        SLURM_PARTITION='<:SLURM_SBATCH:>--partition=defq',
+        SLURM_ASK_NODES=2,
+        SLURM_NODES='<:SLURM_SBATCH:>--nodes=<:SLURM_ASK_NODES:>',
+        SLURM_ASK_TASKS=4,
+        SLURM_TASKS='<:SLURM_SBATCH:>--ntasks-per-node=<:SLURM_ASK_TASKS:>',
+        SLURM_MEMORY='<:SLURM_SBATCH:>--memory=2gb',
+        SLURM_TIME='<:SLURM_SBATCH:>--time=1:00:00',
+        SLURM_ARRAY="<:NULL:>",
+        MODULES_LOAD='module load module/for/openmpi module/for/R',
+        WORKDIR=ifelse('<:SLURM_SBATCH:>'!='#SBATCH','# no slurm machine','cd ${SLURM_SUBMIT_DIR}'),
+        TASK="<:NULL:>",
+        PASS_TASK="<:NULL:>",
+        PASS_TASK_VAR="<:NULL:>",
+        MPI_N="<:NULL:>",
+        MPI_ASK_N='<r@ <:SLURM_ASK_NODES:> * <:SLURM_ASK_TASKS:> @>',
+        R_HOME=R.home("bin"),
+        R_OPTIONS='--no-save --no-restore',
+        R_FILE_INPUT='script.R',
+        R_ARGS='',
+        R_FILE_OUTPUT='output.Rout',
+        MPIRUN='mpirun --mca mpi_warn_on_fork 0 -n <:MPI_ASK_N:> <:R_HOME:>/Rscript <:R_OPTIONS:> "<:R_FILE_INPUT:>" <r@ ifelse(!any(grepl("^<:NULL:>$","<:SLURM_ARRAY:>")),"<:PASS_TASK_VAR:>","") @> <:R_ARGS:> > <:R_FILE_OUTPUT:>',
+        MESSAGE_CLOSE='echo "Job submitted on $(date +%F) at $(date +%T)."',
+        drop = TRUE,
+        template = T
+    )
+
+Here we have used a new default environment to evaluate the arguments. the argument `drop = TRUE` will delete any line containing `<:NULL:>` in it.
+
+The output from `translate` is a character vector where each element is a line in the resulting file. We can print it to disk easily using `cat` (remember to set `sep = "\n"`).
+
+## Resulting source file
+
+The final content of the template once translated depends on the values of the variables used (which are system dependent). Thus, for a multicore PC with [OpenMPI](https://www.open-mpi.org/) but without a dynamic environment modules manager such as [environment-modules](http://modules.sourceforge.net/) or [Lmod](https://lmod.readthedocs.io/en/latest/#) and without a job scheduler such as [SLURM](https://www.schedmd.com/index.php) then the output of `cat(TT, sep="\n")` will be something like this:
+
+
+    #!/bin/bash
+
+    # module environment not found
+
+    # no slurm machine
+
+    mpirun --mca mpi_warn_on_fork 0 -n 8 /apps/local/resources/svn/R/r-devel/build/bin/Rscript --no-save --no-restore "script.R"   > output.Rout
+
+    echo "Job submitted on $(date +%F) at $(date +%T)."
+
+While for an `SLURM` managed HPC having also `environment-modules` we would obtain:
+
+
+    #!/bin/bash
+    #SBATCH --partition=defq
+    #SBATCH --nodes=2
+    #SBATCH --ntasks-per-node=4
+    #SBATCH --memory=2gb
+    #SBATCH --time=1:00:00
+
+    module load module/for/openmpi module/for/R
+
+    cd ${SLURM_SUBMIT_DIR}
+
+    mpirun --mca mpi_warn_on_fork 0 -n 8 /usr/lib/R/bin/Rscript --no-save --no-restore "script.R" > output.Rout
+
+    echo "Job submitted on $(date +%F) at $(date +%T)."
+
+Additional rules could be added to control the lenght of the mpirun line, however as it is it works fine. Other source code can be generated following the same principles described before.
+
+## Alternative variables definition
+
+For templates having too many variables, translation can be performed calling a list with names elements containing the variables part of the template. For instance, the previous example could be also:
+
+
+    ## list with arguments
+    v <- list(
+        SHELL_CALL='#!/bin/bash',
+        SLURM_SBATCH=ifelse(.Platform$OS.type=="unix", ifelse(system("clu=$(sinfo --version 2>&1) || clu=`echo -1`; echo $clu",intern = TRUE)=="-1", '<:NULL:>', '#SBATCH '), '<:NULL:>'),
+        SLURM_PARTITION='<:SLURM_SBATCH:>--partition=defq',
+        SLURM_ASK_NODES=2,
+        SLURM_NODES='<:SLURM_SBATCH:>--nodes=<:SLURM_ASK_NODES:>',
+        SLURM_ASK_TASKS=4,
+        SLURM_TASKS='<:SLURM_SBATCH:>--ntasks-per-node=<:SLURM_ASK_TASKS:>',
+        SLURM_MEMORY='<:SLURM_SBATCH:>--memory=2gb',
+        SLURM_TIME='<:SLURM_SBATCH:>--time=1:00:00',
+        SLURM_ARRAY="<:NULL:>",
+        MODULES_LOAD='module load module/for/openmpi module/for/R',
+        WORKDIR=ifelse('<:SLURM_SBATCH:>'!='#SBATCH','# no slurm machine','cd ${SLURM_SUBMIT_DIR}'),
+        TASK="<:NULL:>",
+        PASS_TASK="<:NULL:>",
+        PASS_TASK_VAR="<:NULL:>",
+        MPI_N="<:NULL:>",
+        MPI_ASK_N='<r@ <:SLURM_ASK_NODES:> * <:SLURM_ASK_TASKS:> @>',
+        R_HOME=R.home("bin"),
+        R_OPTIONS='--no-save --no-restore',
+        R_FILE_INPUT='script.R',
+        R_ARGS='',
+        R_FILE_OUTPUT='output.Rout',
+        MPIRUN='mpirun --mca mpi_warn_on_fork 0 -n <:MPI_ASK_N:> <:R_HOME:>/Rscript <:R_OPTIONS:> /
+        "<:R_FILE_INPUT:>" <r@ ifelse(!any(grepl("^<:NULL:>$","<:SLURM_ARRAY:>")),"<:PASS_TASK_VAR:>","") @> /
+        <:R_ARGS:> > <:R_FILE_OUTPUT:>',
+        MESSAGE_CLOSE='echo "Job submitted on $(date +%F) at $(date +%T)."'
+    )
+
+    ## Produce output
+    ## remember to load: library(tmplate) or call tmplate::translate
+    TT <- translate(vars = v, drop = TRUE, template = T)
+
+    ## See result
+    cat(TT, sep="\n")
+
+which produces the same output.
+
+## Limitations
+
+Since `tmplate` uses `tRnslate`, then some of the limitations of the latter also applies to the former (see [tRnslate vignette](https://cran.r-project.org/package=tRnslate/vignettes/tRnslate.html) for more details).
+
+##### *RECOMMENDATIONS*
+
+1. Never replace the content of a template writing the output to the same file.
+
+2. Always check the content of the *"translated"* output before using it for other tasks.
+
+3. Be cautious.
+
+## References
+
+* [tRnslate package on CRAN](https://cran.r-project.org/package=tRnslate)
+* [tRnslate package vignette](https://cran.r-project.org/package=tRnslate/vignettes/tRnslate.html)
+* [Writing R Extensions](https://cran.r-project.org/doc/manuals/R-exts.html)
+* [Writing Vignettes](https://bookdown.org/yihui/rmarkdown/r-package-vignette.html)
+* [SLURM documentation](https://slurm.schedmd.com/)
+* [Environment modules documentation](https://modules.readthedocs.io/en/latest/)
+* [OpenMPI documentation](https://www.open-mpi.org/doc/)
+
+
+
+
+
+
